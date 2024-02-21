@@ -4,7 +4,7 @@ on: [push, pull_request]
 
 jobs:
   execute-notebook:
-    runs-on: self-hosted  # Ensure this matches your self-hosted runner's label
+    runs-on: ubuntu-latest  # Using GitHub-hosted runner
     strategy:
       matrix:
         python-version: ['3.9']  # Update to the latest Python version
@@ -20,8 +20,14 @@ jobs:
     - name: Install dependencies
       run: |
         pip install -r requirements.txt
-        pip install jupyter  # Install Jupyter
+        pip install jupyter nbconvert  # Install Jupyter and nbconvert
 
     - name: Execute Jupyter Notebook
       run: |
         jupyter nbconvert --to notebook --execute SephMnotebook.ipynb --output SephMnotebook_executed.ipynb
+
+    - name: Upload executed notebook
+      uses: actions/upload-artifact@v2
+      with:
+        name: executed-notebook
+        path: SephMnotebook_executed.ipynb
