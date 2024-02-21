@@ -1,5 +1,8 @@
 # Seph's MVP
 
+### this is the README for the model repository*
+**This repository is the testing repository for the model component of SephsBIOME
+
 ## Overview
 This project involves a complex machine learning model integrating an RBM Layer, a Q-Learning Layer, and Transformer Encoder. It is designed for experimenting with reinforcement learning techniques and neural network architectures. Additionally, it includes a model evaluation script (`model_eval.py`) for assessing the performance of the trained model.
 
