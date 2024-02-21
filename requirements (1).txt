@@ -1,0 +1,7 @@
+gym[box2d]
+numpy
+pandas
+matplotlib
+tensorflow
+scikit-learn
+joblib
