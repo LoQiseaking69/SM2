@@ -1,0 +1,27 @@
+name: Sephs model CI/CD
+
+on: [push, pull_request]
+
+jobs:
+  execute-notebook:
+    runs-on: self-hosted  # Ensure this matches your self-hosted runner's label
+    strategy:
+      matrix:
+        python-version: ['3.9']  # Update to the latest Python version
+
+    steps:
+    - uses: actions/checkout@v2  # Checks-out your repository
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+        pip install jupyter  # Install Jupyter
+
+    - name: Execute Jupyter Notebook
+      run: |
+        jupyter nbconvert --to notebook --execute SephMnotebook.ipynb --output SephMnotebook_executed.ipynb
