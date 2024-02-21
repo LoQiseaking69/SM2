@@ -1,6 +1,6 @@
 # Seph's MVP
 
-### this is the README for the model repository*
+### This is the README for the model repository*
 **This repository is the testing repository for the model component of SephsBIOME
 
 ## Overview
