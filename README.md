@@ -44,4 +44,4 @@ For more details, refer to the comments and documentation within the notebook it
 
 ## License
 
-This project is open-source and available under the license found in the LICENSE file.
+This project is open-source and available under the license found in the [LICENSE](https://github.com/LoQiseaking69/SM2/blob/main/LICENSE) file.
