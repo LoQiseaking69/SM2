@@ -1,6 +1,8 @@
 # Neural Network Model for SEPHSbiome Project
 
-![Sm2](https://github.com/LoQiseaking69/SM2/blob/main/Sm2.png)
+<p align="center">
+  <img src="https://github.com/LoQiseaking69/SM2/blob/main/Sm2.png" alt="Sm2">
+</p>
 
 This repository contains the neural network model developed for the SEPHSbiome project, which is part of a Rust-based Genetic Algorithm module.
 
