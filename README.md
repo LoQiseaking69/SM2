@@ -7,6 +7,8 @@
 This repository contains the neural network model developed for the SEPHSbiome project, which is part of a Rust-based Genetic Algorithm module.
 [SephsBIOME](https://github.com/LoQiseaking69/SephsBIOME)
 
+All updates here must be relayed back to [the SephMV Repository](https://github.com/LoQiseaking69/SephMV)
+
 ## Repository Contents
 
 - `.github`: Configuration files for GitHub workflows and actions.
