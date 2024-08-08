@@ -5,6 +5,12 @@ from tensorflow.keras import layers, models, optimizers, regularizers
 from collections import deque
 import gym
 import logging
+from typing import Tuple, List, Union
+import scipy.stats as stats
+import pandas as pd
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import mean_squared_error
+from tqdm import tqdm
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -18,14 +24,14 @@ class PrioritizedReplayBuffer:
         self.priorities = deque(maxlen=max_size)
         self.alpha = alpha
 
-    def store_transition(self, transition: tuple):
+    def store_transition(self, transition: Tuple):
         if not isinstance(transition, tuple):
             raise ValueError("Transition must be a tuple")
         max_priority = max(self.priorities, default=1.0)
         self.buffer.append(transition)
         self.priorities.append(max_priority)
 
-    def sample_buffer(self, batch_size: int, beta: float = 0.4):
+    def sample_buffer(self, batch_size: int, beta: float = 0.4) -> Union[None, Tuple[List[np.ndarray], np.ndarray, np.ndarray]]:
         if batch_size <= 0:
             raise ValueError("batch_size must be greater than 0")
         if len(self.buffer) < batch_size:
@@ -45,7 +51,7 @@ class PrioritizedReplayBuffer:
 
         return [np.stack(samples[:, i]) for i in range(samples.shape[1])], indices, weights
 
-    def update_priorities(self, batch_indices, batch_priorities):
+    def update_priorities(self, batch_indices: np.ndarray, batch_priorities: np.ndarray):
         for idx, priority in zip(batch_indices, batch_priorities):
             self.priorities[idx] = priority
 
@@ -180,7 +186,7 @@ def train_model_in_bipedalwalker(env_name: str, q_learning_layer: QLearningLayer
         logger.error(f"Failed to create environment {env_name}: {e}")
         raise
 
-    for episode in range(num_episodes):
+    for episode in tqdm(range(num_episodes), desc="Training Episodes"):
         state = env.reset()
         state = preprocess_state(state)  # Ensure state is a float32 numpy array
         done = False
@@ -217,7 +223,7 @@ def evaluate_model(model: models.Model, env_name: str, num_episodes: int):
 
     total_rewards = []
 
-    for episode in range(num_episodes):
+    for episode in tqdm(range(num_episodes), desc="Evaluation Episodes"):
         state = env.reset()
         state = preprocess_state(state)  # Ensure state is a float32 numpy array
         done = False
