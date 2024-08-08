@@ -72,7 +72,7 @@ class RBMLayer(layers.Layer):
         return tf.nn.sigmoid(activation)
 
 class QLearningLayer(layers.Layer):
-    def __init__(self, action_space_size: int, learning_rate: float = 0.001, gamma: float = 0.99, epsilon: float = 0.1):
+    def __init__(self, action_space_size: int, learning_rate: float = 0.001, gamma: float = 0.99, epsilon: float = 0.1, min_epsilon: float = 0.01, epsilon_decay: float = 0.995):
         super(QLearningLayer, self).__init__()
         if action_space_size <= 0:
             raise ValueError("Action space size must be positive")
@@ -80,8 +80,8 @@ class QLearningLayer(layers.Layer):
         self.learning_rate = learning_rate
         self.gamma = gamma
         self.epsilon = epsilon
-        self.epsilon_decay = 0.995
-        self.min_epsilon = 0.01
+        self.min_epsilon = min_epsilon
+        self.epsilon_decay = epsilon_decay
         self.buffer_index = 0
         self.replay_buffer = PrioritizedReplayBuffer(100000)
         self.q_network = self._build_network()
@@ -122,7 +122,7 @@ class QLearningLayer(layers.Layer):
         if self.buffer_index % 1000 == 0:
             self.target_q_network.set_weights(self.q_network.get_weights())
         if self.epsilon > self.min_epsilon:
-            self.epsilon *= self.epsilon_decay
+            self.epsilon = max(self.min_epsilon, self.epsilon * self.epsilon_decay)
 
         priorities = np.abs(target_q_values - q_values) + 1e-6
         self.replay_buffer.update_priorities(indices, priorities)
@@ -162,7 +162,7 @@ def create_neural_network_model(input_dim: int, num_hidden_units: int, action_sp
     model = models.Model(inputs=input_layer, outputs=q_learning_layer)
     return model
 
-def train_model_in_bipedalwalker(env_name: str, q_learning_layer: QLearningLayer, num_episodes: int, epsilon: float = 0.1):
+def train_model_in_bipedalwalker(env_name: str, q_learning_layer: QLearningLayer, num_episodes: int, epsilon: float = 0.1, checkpoint_interval: int = 100):
     try:
         env = gym.make(env_name)
     except gym.error.Error as e:
@@ -171,14 +171,14 @@ def train_model_in_bipedalwalker(env_name: str, q_learning_layer: QLearningLayer
 
     for episode in range(num_episodes):
         state = env.reset()
-        state = np.array(state, dtype=np.float32).reshape(1, -1)  # Ensure state is a float32 numpy array
+        state = np.asarray(state, dtype=np.float32).reshape(1, -1)  # Ensure state is a float32 numpy array
         done = False
         total_reward = 0
 
         while not done:
             action = q_learning_layer.choose_action(state)
             next_state, reward, done, _ = env.step(action)
-            next_state = np.array(next_state, dtype=np.float32).reshape(1, -1)  # Ensure next_state is a float32 numpy array
+            next_state = np.asarray(next_state, dtype=np.float32).reshape(1, -1)  # Ensure next_state is a float32 numpy array
             q_learning_layer.store_transition(state, action, reward, next_state, done)
             q_learning_layer.update(batch_size=32)
             state = next_state
@@ -186,10 +186,16 @@ def train_model_in_bipedalwalker(env_name: str, q_learning_layer: QLearningLayer
 
         logger.info(f'Episode {episode + 1}/{num_episodes}, Total Reward: {total_reward}')
 
+        # Save checkpoints
+        if (episode + 1) % checkpoint_interval == 0:
+            checkpoint_path = f'checkpoint_model_{episode + 1}.h5'
+            q_learning_layer.save_weights(checkpoint_path)
+            logger.info(f"Checkpoint saved at {checkpoint_path}")
+
     env.close()
-    save_path = 'trained_model.h5'
-    q_learning_layer.save_weights(save_path)
-    logger.info(f"Model saved successfully at {save_path}")
+    final_save_path = 'trained_model.h5'
+    q_learning_layer.save_weights(final_save_path)
+    logger.info(f"Final model saved successfully at {final_save_path}")
 
 def evaluate_model(model: models.Model, env_name: str, num_episodes: int):
     try:
@@ -202,14 +208,14 @@ def evaluate_model(model: models.Model, env_name: str, num_episodes: int):
 
     for episode in range(num_episodes):
         state = env.reset()
-        state = np.array(state).reshape(1, -1)
+        state = np.asarray(state, dtype=np.float32).reshape(1, -1)  # Ensure state is a float32 numpy array
         done = False
         total_reward = 0
 
         while not done:
             action = model.choose_action(state)
             next_state, reward, done, _ = env.step(action)
-            next_state = np.array(next_state).reshape(1, -1)
+            next_state = np.asarray(next_state, dtype=np.float32).reshape(1, -1)  # Ensure next_state is a float32 numpy array
             state = next_state
             total_reward += reward
 
