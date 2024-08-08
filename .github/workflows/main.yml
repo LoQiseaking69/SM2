@@ -3,14 +3,14 @@ name: Sephs model CI/CD
 on: [push, pull_request]
 
 jobs:
-  execute-notebook:
-    runs-on: ubuntu-latest  # Using GitHub-hosted runner
+  build-and-run:
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.9']  # Update to the latest Python version
+        python-version: ['3.9']
 
     steps:
-    - uses: actions/checkout@v2  # Checks-out your repository
+    - uses: actions/checkout@v2
 
     - name: Set up Python
       uses: actions/setup-python@v2
@@ -19,15 +19,28 @@ jobs:
 
     - name: Install dependencies
       run: |
-        pip install -r requirements.txt
-        pip install jupyter nbconvert  # Install Jupyter and nbconvert
+        pip install tensorflow gym numpy
 
-    - name: Execute Jupyter Notebook
+    - name: Execute Python Script
       run: |
-        jupyter nbconvert --to notebook --execute SephMnotebook.ipynb --output SephMnotebook_executed.ipynb
+        python sm3.py
 
-    - name: Upload executed notebook
+    - name: Check for model artifact
+      run: |
+        if [ -f trained_model.h5 ]; then echo "Model artifact found."; else echo "Model artifact not found."; exit 1; fi
+
+    - name: Upload model artifact
+      if: success()
       uses: actions/upload-artifact@v2
       with:
-        name: executed-notebook
-        path: SephMnotebook_executed.ipynb
+        name: trained-model
+        path: trained_model.h5
+
+    - name: Create logs directory
+      run: mkdir -p logs
+
+    - name: Upload logs
+      uses: actions/upload-artifact@v2
+      with:
+        name: logs
+        path: logs
