@@ -162,6 +162,14 @@ def create_neural_network_model(input_dim: int, num_hidden_units: int, action_sp
     model = models.Model(inputs=input_layer, outputs=q_learning_layer)
     return model
 
+def preprocess_state(state):
+    """
+    Ensure the state is a consistent NumPy array of float32 type.
+    """
+    if isinstance(state, (tuple, list)):
+        state = np.concatenate([np.asarray(s, dtype=np.float32).flatten() for s in state])
+    return np.asarray(state, dtype=np.float32).reshape(1, -1)
+
 def train_model_in_bipedalwalker(env_name: str, q_learning_layer: QLearningLayer, num_episodes: int, epsilon: float = 0.1, checkpoint_interval: int = 100):
     try:
         env = gym.make(env_name)
@@ -171,14 +179,14 @@ def train_model_in_bipedalwalker(env_name: str, q_learning_layer: QLearningLayer
 
     for episode in range(num_episodes):
         state = env.reset()
-        state = np.asarray(state, dtype=np.float32).reshape(1, -1)  # Ensure state is a float32 numpy array
+        state = preprocess_state(state)  # Ensure state is a float32 numpy array
         done = False
         total_reward = 0
 
         while not done:
             action = q_learning_layer.choose_action(state)
             next_state, reward, done, _ = env.step(action)
-            next_state = np.asarray(next_state, dtype=np.float32).reshape(1, -1)  # Ensure next_state is a float32 numpy array
+            next_state = preprocess_state(next_state)  # Ensure next_state is a float32 numpy array
             q_learning_layer.store_transition(state, action, reward, next_state, done)
             q_learning_layer.update(batch_size=32)
             state = next_state
@@ -208,14 +216,14 @@ def evaluate_model(model: models.Model, env_name: str, num_episodes: int):
 
     for episode in range(num_episodes):
         state = env.reset()
-        state = np.asarray(state, dtype=np.float32).reshape(1, -1)  # Ensure state is a float32 numpy array
+        state = preprocess_state(state)  # Ensure state is a float32 numpy array
         done = False
         total_reward = 0
 
         while not done:
             action = model.choose_action(state)
             next_state, reward, done, _ = env.step(action)
-            next_state = np.asarray(next_state, dtype=np.float32).reshape(1, -1)  # Ensure next_state is a float32 numpy array
+            next_state = preprocess_state(next_state)  # Ensure next_state is a float32 numpy array
             state = next_state
             total_reward += reward
 
