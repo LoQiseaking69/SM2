@@ -4,7 +4,6 @@ import tensorflow as tf
 from tensorflow.keras import layers, models, optimizers, regularizers
 from collections import deque
 import gym
-import random
 import logging
 
 # Configure logging
