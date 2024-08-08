@@ -96,10 +96,13 @@ class QLearningLayer(layers.Layer):
         ])
         return model
 
-    def call(self, state: np.ndarray) -> tf.Tensor:
-        if not isinstance(state, np.ndarray):
-            raise ValueError("State must be a numpy array")
-        return self.q_network(state)
+    def call(self, inputs):
+        if not isinstance(inputs, tf.Tensor):
+            raise ValueError("Inputs must be a Keras tensor")
+        return self.q_network(inputs)
+
+    def compute_output_shape(self, input_shape):
+        return (input_shape[0], self.action_space_size)
 
     def update(self, batch_size: int, beta: float = 0.4):
         data = self.replay_buffer.sample_buffer(batch_size, beta)
