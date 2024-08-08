@@ -188,14 +188,16 @@ def train_model_in_bipedalwalker(env_name: str, q_learning_layer: QLearningLayer
 
     for episode in tqdm(range(num_episodes), desc="Training Episodes"):
         state = env.reset()
-        state = preprocess_state(state)  # Ensure state is a float32 numpy array
+        if isinstance(state, dict):
+            state = preprocess_state(state)
         done = False
         total_reward = 0
 
         while not done:
             action = q_learning_layer.choose_action(state)
             next_state, reward, done, _ = env.step(action)
-            next_state = preprocess_state(next_state)  # Ensure next_state is a float32 numpy array
+            if isinstance(next_state, dict):
+                next_state = preprocess_state(next_state)
             q_learning_layer.store_transition(state, action, reward, next_state, done)
             q_learning_layer.update(batch_size=32)
             state = next_state
@@ -225,14 +227,16 @@ def evaluate_model(model: models.Model, env_name: str, num_episodes: int):
 
     for episode in tqdm(range(num_episodes), desc="Evaluation Episodes"):
         state = env.reset()
-        state = preprocess_state(state)  # Ensure state is a float32 numpy array
+        if isinstance(state, dict):
+            state = preprocess_state(state)
         done = False
         total_reward = 0
 
         while not done:
             action = model.choose_action(state)
             next_state, reward, done, _ = env.step(action)
-            next_state = preprocess_state(next_state)  # Ensure next_state is a float32 numpy array
+            if isinstance(next_state, dict):
+                next_state = preprocess_state(next_state)
             state = next_state
             total_reward += reward
 
