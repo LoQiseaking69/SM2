@@ -166,9 +166,13 @@ def preprocess_state(state):
     """
     Ensure the state is a consistent NumPy array of float32 type.
     """
-    if isinstance(state, (tuple, list)):
+    if isinstance(state, dict):
+        state = np.concatenate([np.asarray(s, dtype=np.float32).flatten() for s in state.values()])
+    elif isinstance(state, (tuple, list)):
         state = np.concatenate([np.asarray(s, dtype=np.float32).flatten() for s in state])
-    return np.asarray(state, dtype=np.float32).reshape(1, -1)
+    else:
+        state = np.asarray(state, dtype=np.float32).flatten()
+    return state.reshape(1, -1)
 
 def train_model_in_bipedalwalker(env_name: str, q_learning_layer: QLearningLayer, num_episodes: int, epsilon: float = 0.1, checkpoint_interval: int = 100):
     try:
