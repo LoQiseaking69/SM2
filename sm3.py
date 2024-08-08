@@ -171,14 +171,14 @@ def train_model_in_bipedalwalker(env_name: str, q_learning_layer: QLearningLayer
 
     for episode in range(num_episodes):
         state = env.reset()
-        state = np.array(state).reshape(1, -1)
+        state = np.array(state, dtype=np.float32).reshape(1, -1)  # Ensure state is a float32 numpy array
         done = False
         total_reward = 0
 
         while not done:
             action = q_learning_layer.choose_action(state)
             next_state, reward, done, _ = env.step(action)
-            next_state = np.array(next_state).reshape(1, -1)
+            next_state = np.array(next_state, dtype=np.float32).reshape(1, -1)  # Ensure next_state is a float32 numpy array
             q_learning_layer.store_transition(state, action, reward, next_state, done)
             q_learning_layer.update(batch_size=32)
             state = next_state
