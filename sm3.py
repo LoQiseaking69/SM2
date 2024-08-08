@@ -11,7 +11,6 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Prioritized Replay Buffer for storing transitions
 class PrioritizedReplayBuffer:
     def __init__(self, max_size: int, alpha: float = 0.6):
         if max_size <= 0:
@@ -51,7 +50,6 @@ class PrioritizedReplayBuffer:
         for idx, priority in zip(batch_indices, batch_priorities):
             self.priorities[idx] = priority
 
-# RBM Layer implementation
 class RBMLayer(layers.Layer):
     def __init__(self, num_hidden_units: int):
         super(RBMLayer, self).__init__()
@@ -73,7 +71,6 @@ class RBMLayer(layers.Layer):
         activation = tf.matmul(inputs, self.rbm_weights) + self.biases
         return tf.nn.sigmoid(activation)
 
-# Q-Learning Layer implementation
 class QLearningLayer(layers.Layer):
     def __init__(self, action_space_size: int, learning_rate: float = 0.001, gamma: float = 0.99, epsilon: float = 0.1):
         super(QLearningLayer, self).__init__()
@@ -151,7 +148,6 @@ class QLearningLayer(layers.Layer):
             raise FileNotFoundError("The specified file does not exist")
         self.q_network.load_weights(filepath)
 
-# Neural Network model creation function
 def create_neural_network_model(input_dim: int, num_hidden_units: int, action_space_size: int) -> models.Model:
     if input_dim <= 0 or num_hidden_units <= 0 or action_space_size <= 0:
         raise ValueError("Input dimensions and action space size must be positive")
@@ -163,7 +159,6 @@ def create_neural_network_model(input_dim: int, num_hidden_units: int, action_sp
     model = models.Model(inputs=input_layer, outputs=q_learning_layer)
     return model
 
-# Training function
 def train_model_in_bipedalwalker(env_name: str, q_learning_layer: QLearningLayer, num_episodes: int, epsilon: float = 0.1):
     try:
         env = gym.make(env_name)
@@ -193,7 +188,6 @@ def train_model_in_bipedalwalker(env_name: str, q_learning_layer: QLearningLayer
     q_learning_layer.save_weights(save_path)
     logger.info(f"Model saved successfully at {save_path}")
 
-# Model evaluation function
 def evaluate_model(model: models.Model, env_name: str, num_episodes: int):
     try:
         env = gym.make(env_name)
@@ -226,7 +220,6 @@ def evaluate_model(model: models.Model, env_name: str, num_episodes: int):
     logger.info(f'Standard Deviation of Reward: {std_reward}')
     return avg_reward, std_reward
 
-# Model loading function
 def load_model(model_path: str) -> models.Model:
     try:
         custom_objects = {'RBMLayer': RBMLayer, 'QLearningLayer': QLearningLayer}
@@ -237,7 +230,6 @@ def load_model(model_path: str) -> models.Model:
         logger.error(f"Error loading model: {e}")
         raise
 
-# Main function to run the training and evaluation
 def main():
     input_dim = 24
     num_hidden_units = 128
