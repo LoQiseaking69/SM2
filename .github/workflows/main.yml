@@ -19,7 +19,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        pip install tensorflow gym numpy
+        pip install -r requirements.txt
 
     - name: Execute Python Script
       run: |
