@@ -6,9 +6,6 @@ from collections import deque
 import gym
 import logging
 from typing import Tuple, List, Union
-import pandas as pd
-from sklearn.preprocessing import OneHotEncoder
-from sklearn.metrics import mean_squared_error
 from tqdm import tqdm
 
 # Configure logging
@@ -200,6 +197,19 @@ def preprocess_state(state: Union[np.ndarray, dict, list, tuple]) -> np.ndarray:
     
     return state.reshape(1, -1)
 
+def flatten_dict(d, parent_key='', sep='_'):
+    """
+    Recursively flatten a nested dictionary into a single dictionary with concatenated keys.
+    """
+    items = []
+    for k, v in d.items():
+        new_key = f'{parent_key}{sep}{k}' if parent_key else k
+        if isinstance(v, dict):
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
+
 def train_agent(env_name: str, agent: QLearningAgent, num_episodes: int, checkpoint_interval: int = 100):
     """
     Train the Q-learning agent in the specified environment.
@@ -219,6 +229,7 @@ def train_agent(env_name: str, agent: QLearningAgent, num_episodes: int, checkpo
         while not done:
             action = agent.choose_action(state)
             next_state, reward, done, truncated, _ = env.step(action)
+            done = done or truncated  # Ensure truncated episodes are handled correctly
             next_state = preprocess_state(next_state)
             agent.store_transition(state, action, reward, next_state, done)
             agent.update(batch_size=32)
@@ -261,6 +272,7 @@ def evaluate_agent(agent: QLearningAgent, env_name: str, num_episodes: int) -> T
         while not done:
             action = agent.choose_action(state)
             next_state, reward, done, truncated, _ = env.step(action)
+            done = done or truncated  # Ensure truncated episodes are handled correctly
             next_state = preprocess_state(next_state)
             state = next_state
             total_reward += reward
