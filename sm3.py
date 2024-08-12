@@ -55,8 +55,8 @@ class PrioritizedReplayBuffer:
             self.priorities[idx] = priority
 
 class RBMLayer(layers.Layer):
-    def __init__(self, num_hidden_units: int):
-        super(RBMLayer, self).__init__()
+    def __init__(self, num_hidden_units: int, trainable=True, **kwargs):
+        super(RBMLayer, self).__init__(trainable=trainable, **kwargs)
         if num_hidden_units <= 0:
             raise ValueError("Number of hidden units must be positive")
         self.num_hidden_units = num_hidden_units
