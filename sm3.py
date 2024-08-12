@@ -17,22 +17,19 @@ logger = logging.getLogger(__name__)
 
 class PrioritizedReplayBuffer:
     def __init__(self, max_size: int, alpha: float = 0.6):
-        if max_size <= 0:
-            raise ValueError("max_size must be greater than 0")
+        assert max_size > 0, "max_size must be greater than 0"
         self.buffer = deque(maxlen=max_size)
         self.priorities = deque(maxlen=max_size)
         self.alpha = alpha
 
     def store_transition(self, transition: Tuple):
-        if not isinstance(transition, tuple):
-            raise ValueError("Transition must be a tuple")
+        assert isinstance(transition, tuple), "Transition must be a tuple"
         max_priority = max(self.priorities, default=1.0)
         self.buffer.append(transition)
         self.priorities.append(max_priority)
 
     def sample_buffer(self, batch_size: int, beta: float = 0.4) -> Union[None, Tuple[List[np.ndarray], np.ndarray, np.ndarray]]:
-        if batch_size <= 0:
-            raise ValueError("batch_size must be greater than 0")
+        assert batch_size > 0, "batch_size must be greater than 0"
         if len(self.buffer) < batch_size:
             logger.warning("Not enough elements in the buffer to sample")
             return None
@@ -42,8 +39,7 @@ class PrioritizedReplayBuffer:
         probabilities /= probabilities.sum()
 
         indices = np.random.choice(len(self.buffer), batch_size, p=probabilities)
-        samples = [self.buffer[i] for i in indices]
-        samples = np.array(samples, dtype=object)
+        samples = np.array([self.buffer[i] for i in indices], dtype=object)
 
         weights = (len(self.buffer) * probabilities[indices]) ** (-beta)
         weights /= weights.max()
@@ -57,13 +53,11 @@ class PrioritizedReplayBuffer:
 class RBMLayer(layers.Layer):
     def __init__(self, num_hidden_units: int, trainable=True, **kwargs):
         super(RBMLayer, self).__init__(trainable=trainable, **kwargs)
-        if num_hidden_units <= 0:
-            raise ValueError("Number of hidden units must be positive")
+        assert num_hidden_units > 0, "Number of hidden units must be positive"
         self.num_hidden_units = num_hidden_units
 
     def build(self, input_shape):
-        if len(input_shape) != 2:
-            raise ValueError("RBMLayer expects input shape of length 2")
+        assert len(input_shape) == 2, "RBMLayer expects input shape of length 2"
         self.rbm_weights = self.add_weight(shape=(input_shape[-1], self.num_hidden_units),
                                            initializer='glorot_uniform',
                                            trainable=True)
@@ -77,8 +71,9 @@ class RBMLayer(layers.Layer):
 
 class QLearningAgent:
     def __init__(self, input_dim: int, num_hidden_units: int, action_space_size: int, num_attention_heads: int, learning_rate: float = 0.001, gamma: float = 0.99, epsilon: float = 0.1, min_epsilon: float = 0.01, epsilon_decay: float = 0.995, buffer_size: int = 100000):
-        if input_dim <= 0 or action_space_size <= 0 or num_hidden_units <= 0 or num_attention_heads <= 0:
-            raise ValueError("Input dimensions, hidden units, attention heads, and action space size must be positive")
+        assert all(param > 0 for param in [input_dim, action_space_size, num_hidden_units, num_attention_heads]), \
+            "Input dimensions, hidden units, attention heads, and action space size must be positive"
+
         self.input_dim = input_dim
         self.num_hidden_units = num_hidden_units
         self.action_space_size = action_space_size
@@ -127,6 +122,7 @@ class QLearningAgent:
         Updates the target Q-network with the current Q-network's weights.
         """
         self.target_q_network.set_weights(self.q_network.get_weights())
+
     def update(self, batch_size: int, beta: float = 0.4):
         """
         Updates the Q-network using a batch of transitions sampled from the replay buffer.
@@ -150,23 +146,20 @@ class QLearningAgent:
         self.replay_buffer.update_priorities(indices, priorities)
 
         # Decay epsilon
-        if self.epsilon > self.min_epsilon:
-            self.epsilon *= heres
+        self.epsilon = max(self.min_epsilon, self.epsilon * self.epsilon_decay)
 
     def store_transition(self, state: np.ndarray, action: int, reward: float, next_state: np.ndarray, done: bool):
         """
         Store a transition in the replay buffer.
         """
-        if not isinstance(state, np.ndarray) or not isinstance(next_state, np.ndarray):
-            raise ValueError("State and next_state must be numpy arrays")
+        assert isinstance(state, np.ndarray) and isinstance(next_state, np.ndarray), "State and next_state must be numpy arrays"
         self.replay_buffer.store_transition((state, action, reward, next_state, done))
 
     def choose_action(self, state: np.ndarray) -> int:
         """
         Choose an action based on the current Q-network and epsilon-greedy strategy.
         """
-        if not isinstance(state, np.ndarray):
-            raise ValueError("State must be a numpy array")
+        assert isinstance(state, np.ndarray), "State must be a numpy array"
         state = state.reshape(1, -1)
         if np.random.rand() < self.epsilon:
             return np.random.randint(self.action_space_size)
@@ -177,16 +170,14 @@ class QLearningAgent:
         """
         Save the Q-network's weights to the specified file path.
         """
-        if not filepath.endswith('.h5'):
-            raise ValueError("File path must end with '.h5'")
+        assert filepath.endswith('.h5'), "File path must end with '.h5'"
         self.q_network.save_weights(filepath)
 
     def load_weights(self, filepath: str):
         """
         Load the Q-network's weights from the specified file path.
         """
-        if not os.path.exists(filepath):
-            raise FileNotFoundError(f"The specified file {filepath} does not exist")
+        assert os.path.exists(filepath), f"The specified file {filepath} does not exist"
         self.q_network.load_weights(filepath)
 
 def flatten_dict(d, parent_key='', sep='_'):
@@ -226,14 +217,14 @@ def train_agent(env_name: str, agent: QLearningAgent, num_episodes: int, checkpo
         raise
 
     for episode in tqdm(range(num_episodes), desc="Training Episodes"):
-        state = env.reset()
+        state, _ = env.reset()
         state = preprocess_state(state)
         done = False
         total_reward = 0
 
         while not done:
             action = agent.choose_action(state)
-            next_state, reward, done, _ = env.step(action)
+            next_state, reward, done, truncated, _ = env.step(action)
             next_state = preprocess_state(next_state)
             agent.store_transition(state, action, reward, next_state, done)
             agent.update(batch_size=32)
@@ -268,14 +259,14 @@ def evaluate_agent(agent: QLearningAgent, env_name: str, num_episodes: int) -> T
     total_rewards = []
 
     for episode in tqdm(range(num_episodes), desc="Evaluation Episodes"):
-        state = env.reset()
+        state, _ = env.reset()
         state = preprocess_state(state)
         done = False
         total_reward = 0
 
         while not done:
             action = agent.choose_action(state)
-            next_state, reward, done, _ = env.step(action)
+            next_state, reward, done, truncated, _ = env.step(action)
             next_state = preprocess_state(next_state)
             state = next_state
             total_reward += reward
