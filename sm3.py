@@ -192,7 +192,7 @@ class QLearningAgent:
 
 def flatten_dict(d, parent_key='', sep='_'):
     """
-    Recursively flatten a nested dictionary.
+    Recursively flatten a nested dictionary into a single dictionary with concatenated keys.
     """
     items = []
     for k, v in d.items():
@@ -208,7 +208,7 @@ def preprocess_state(state: Union[np.ndarray, dict, list, tuple]) -> np.ndarray:
     Ensure the state is a consistent NumPy array of float32 type, handling nested dictionaries.
     """
     if isinstance(state, dict):
-        state = flatten_dict(state)
+        state = flatten_dict(state)  # Flatten any nested dictionaries
         state = np.concatenate([np.asarray(s, dtype=np.float32).flatten() for s in state.values()])
     elif isinstance(state, (tuple, list)):
         state = np.concatenate([np.asarray(s, dtype=np.float32).flatten() for s in state])
