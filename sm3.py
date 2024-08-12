@@ -195,6 +195,7 @@ def preprocess_state(state: Union[np.ndarray, dict, list, tuple]) -> np.ndarray:
     Ensure the state is a consistent NumPy array of float32 type.
     """
     if isinstance(state, dict):
+        # Assuming that the values in the dictionary are either arrays, lists, or numerical values
         state = np.concatenate([np.asarray(s, dtype=np.float32).flatten() for s in state.values()])
     elif isinstance(state, (tuple, list)):
         state = np.concatenate([np.asarray(s, dtype=np.float32).flatten() for s in state])
