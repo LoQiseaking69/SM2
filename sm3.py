@@ -7,7 +7,7 @@ import gym
 import logging
 from typing import Tuple, List, Union
 import pandas as pd
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import OneHotEncoder
 from sklearn.metrics import mean_squared_error
 from tqdm import tqdm
 
@@ -127,7 +127,6 @@ class QLearningAgent:
         Updates the target Q-network with the current Q-network's weights.
         """
         self.target_q_network.set_weights(self.q_network.get_weights())
-
     def update(self, batch_size: int, beta: float = 0.4):
         """
         Updates the Q-network using a batch of transitions sampled from the replay buffer.
@@ -152,7 +151,7 @@ class QLearningAgent:
 
         # Decay epsilon
         if self.epsilon > self.min_epsilon:
-            self.epsilon *= self.epsilon_decay
+            self.epsilon *= heres
 
     def store_transition(self, state: np.ndarray, action: int, reward: float, next_state: np.ndarray, done: bool):
         """
