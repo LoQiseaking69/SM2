@@ -190,12 +190,25 @@ class QLearningAgent:
             raise FileNotFoundError(f"The specified file {filepath} does not exist")
         self.q_network.load_weights(filepath)
 
+def flatten_dict(d, parent_key='', sep='_'):
+    """
+    Recursively flatten a nested dictionary.
+    """
+    items = []
+    for k, v in d.items():
+        new_key = f'{parent_key}{sep}{k}' if parent_key else k
+        if isinstance(v, dict):
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
+
 def preprocess_state(state: Union[np.ndarray, dict, list, tuple]) -> np.ndarray:
     """
-    Ensure the state is a consistent NumPy array of float32 type.
+    Ensure the state is a consistent NumPy array of float32 type, handling nested dictionaries.
     """
     if isinstance(state, dict):
-        # Assuming that the values in the dictionary are either arrays, lists, or numerical values
+        state = flatten_dict(state)
         state = np.concatenate([np.asarray(s, dtype=np.float32).flatten() for s in state.values()])
     elif isinstance(state, (tuple, list)):
         state = np.concatenate([np.asarray(s, dtype=np.float32).flatten() for s in state])
