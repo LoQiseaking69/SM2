@@ -1,29 +1,46 @@
-name: Sephs model CI/CD
+name: Seph's Model CI/CD
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
   build-and-run:
     runs-on: ubuntu-latest
+
     strategy:
       matrix:
-        python-version: ['3.9']
+        python-version: ['3.9', '3.10']
+        parallelism: [1, 2, 4]  # Test with different levels of parallelism
 
     steps:
-    - uses: actions/checkout@v2
+    - name: Check out repository
+      uses: actions/checkout@v3
 
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
 
     - name: Install dependencies
       run: |
+        python -m pip install --upgrade pip
         pip install -r requirements.txt
+
+    - name: Set up parallelism
+      run: |
+        export OMP_NUM_THREADS=${{ matrix.parallelism }}
+        export MKL_NUM_THREADS=${{ matrix.parallelism }}
+        export OPENBLAS_NUM_THREADS=${{ matrix.parallelism }}
 
     - name: Execute Python Script
       run: |
-        python sm3.py
+        python sm3.py > logs/output.log 2>&1
+      continue-on-error: true  # Ensure logs are captured even if the script fails
 
     - name: Check for model artifact
       run: |
@@ -31,16 +48,34 @@ jobs:
 
     - name: Upload model artifact
       if: success()
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: trained-model
         path: trained_model.h5
 
-    - name: Create logs directory
-      run: mkdir -p logs
-
     - name: Upload logs
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: logs
-        path: logs
+        path: logs/output.log
+
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8
+
+    - name: Lint code
+      run: |
+        flake8 .
