@@ -9,6 +9,8 @@ This repository contains the neural network model developed for the SEPHSbiome p
 
 All updates here must be relayed back to [the SephMV Repository](https://github.com/LoQiseaking69/SephMV)
 
+However, the latest version of research implementation is at [SM3](https://github.com/LoQiseaking69/SM3)
+
 ## Repository Contents
 
 - `.github`: Configuration files for GitHub workflows and actions.
