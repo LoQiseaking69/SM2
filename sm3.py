@@ -180,30 +180,24 @@ class QLearningAgent:
         assert os.path.exists(filepath), f"The specified file {filepath} does not exist"
         self.q_network.load_weights(filepath)
 
-def flatten_dict(d, parent_key='', sep='_'):
-    """
-    Recursively flatten a nested dictionary into a single dictionary with concatenated keys.
-    """
-    items = []
-    for k, v in d.items():
-        new_key = f'{parent_key}{sep}{k}' if parent_key else k
-        if isinstance(v, dict):
-            items.extend(flatten_dict(v, new_key, sep=sep).items())
-        else:
-            items.append((new_key, v))
-    return dict(items)
-
 def preprocess_state(state: Union[np.ndarray, dict, list, tuple]) -> np.ndarray:
     """
     Ensure the state is a consistent NumPy array of float32 type, handling nested dictionaries.
     """
     if isinstance(state, dict):
+        # If state is a dictionary, flatten it, and recursively preprocess its values
         state = flatten_dict(state)  # Flatten any nested dictionaries
-        state = np.concatenate([np.asarray(s, dtype=np.float32).flatten() for s in state.values()])
+        state = np.concatenate([preprocess_state(v) for v in state.values()])
     elif isinstance(state, (tuple, list)):
-        state = np.concatenate([np.asarray(s, dtype=np.float32).flatten() for s in state])
+        # If state is a list or tuple, preprocess each item
+        state = np.concatenate([preprocess_state(s) for s in state])
+    elif isinstance(state, np.ndarray):
+        # If state is already an ndarray, ensure it's float32
+        state = state.astype(np.float32).flatten()
     else:
-        state = np.asarray(state, dtype=np.float32).flatten()
+        # Convert individual scalar values to float32
+        state = np.array([state], dtype=np.float32).flatten()
+    
     return state.reshape(1, -1)
 
 def train_agent(env_name: str, agent: QLearningAgent, num_episodes: int, checkpoint_interval: int = 100):
