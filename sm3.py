@@ -92,8 +92,8 @@ class QLearningAgent:
         """
         inputs = layers.Input(shape=(self.input_dim,))
         
-        x = layers.Dense(128, activation='relu', kernel_initializer='he_uniform', kernel_regularizer=regularizers.l2(0.01))(inputs)
-        x = layers.Dense(64, activation='relu', kernel_initializer='he_uniform', kernel_regularizer=regularizers.l2(0.01))(x)
+        x = layers.Dense(256, activation='relu', kernel_initializer='he_uniform', kernel_regularizer=regularizers.l2(0.01))(inputs)
+        x = layers.Dense(128, activation='relu', kernel_initializer='he_uniform', kernel_regularizer=regularizers.l2(0.01))(x)
         
         # Integrate RBMLayer
         rbm_output = RBMLayer(self.num_hidden_units)(x)
@@ -108,7 +108,7 @@ class QLearningAgent:
         combined = layers.Concatenate()([rbm_output, attention_output])
         
         # Final dense layers for action value prediction
-        x = layers.Dense(128, activation='relu', kernel_initializer='he_uniform', kernel_regularizer=regularizers.l2(0.01))(combined)
+        x = layers.Dense(256, activation='relu', kernel_initializer='he_uniform', kernel_regularizer=regularizers.l2(0.01))(combined)
         outputs = layers.Dense(self.action_space_size, activation='linear', kernel_initializer='glorot_uniform')(x)
         
         model = models.Model(inputs=inputs, outputs=outputs)
@@ -301,16 +301,16 @@ def load_agent(model_path: str, input_dim: int, num_hidden_units: int, num_atten
         raise
 
 def main():
-    input_dim = 24
-    num_hidden_units = 128
-    num_attention_heads = 4
-    action_space_size = 4
+    input_dim = 376  # Adjusted input dimension for Humanoid-v3 environment
+    num_hidden_units = 256
+    num_attention_heads = 8
+    action_space_size = 17  # Humanoid-v3 action space
     num_episodes = 1000
     eval_episodes = 100
 
     agent = QLearningAgent(input_dim=input_dim, num_hidden_units=num_hidden_units, num_attention_heads=num_attention_heads, action_space_size=action_space_size)
 
-    env_name = 'BipedalWalker-v3'
+    env_name = 'Humanoid-v3'
 
     try:
         train_agent(env_name, agent, num_episodes)
