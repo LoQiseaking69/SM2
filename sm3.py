@@ -6,7 +6,6 @@ from collections import deque
 import gym
 import logging
 from typing import Tuple, List, Union
-import scipy.stats as stats
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error
@@ -76,46 +75,70 @@ class RBMLayer(layers.Layer):
         activation = tf.matmul(inputs, self.rbm_weights) + self.biases
         return tf.nn.sigmoid(activation)
 
-class QLearningLayer(layers.Layer):
-    def __init__(self, action_space_size: int, learning_rate: float = 0.001, gamma: float = 0.99, epsilon: float = 0.1, min_epsilon: float = 0.01, epsilon_decay: float = 0.995):
-        super(QLearningLayer, self).__init__()
-        if action_space_size <= 0:
-            raise ValueError("Action space size must be positive")
+class QLearningAgent:
+    def __init__(self, input_dim: int, num_hidden_units: int, action_space_size: int, num_attention_heads: int, learning_rate: float = 0.001, gamma: float = 0.99, epsilon: float = 0.1, min_epsilon: float = 0.01, epsilon_decay: float = 0.995, buffer_size: int = 100000):
+        if input_dim <= 0 or action_space_size <= 0 or num_hidden_units <= 0 or num_attention_heads <= 0:
+            raise ValueError("Input dimensions, hidden units, attention heads, and action space size must be positive")
+        self.input_dim = input_dim
+        self.num_hidden_units = num_hidden_units
         self.action_space_size = action_space_size
+        self.num_attention_heads = num_attention_heads
         self.learning_rate = learning_rate
         self.gamma = gamma
         self.epsilon = epsilon
         self.min_epsilon = min_epsilon
         self.epsilon_decay = epsilon_decay
-        self.buffer_index = 0
-        self.replay_buffer = PrioritizedReplayBuffer(100000)
+        self.replay_buffer = PrioritizedReplayBuffer(buffer_size)
         self.q_network = self._build_network()
         self.target_q_network = models.clone_model(self.q_network)
         self.q_network.compile(optimizer=optimizers.Adam(learning_rate=self.learning_rate), loss='mse')
+        self.update_target_network()
 
-    def _build_network(self) -> models.Sequential:
-        model = models.Sequential([
-            layers.Dense(128, activation='relu', kernel_initializer='he_uniform', kernel_regularizer=regularizers.l2(0.01)),
-            layers.Dense(64, activation='relu', kernel_initializer='he_uniform', kernel_regularizer=regularizers.l2(0.01)),
-            layers.Dense(self.action_space_size, activation='linear', kernel_initializer='glorot_uniform')
-        ])
+    def _build_network(self) -> models.Model:
+        """
+        Build the Q-Network with integrated RBM and Attention layers.
+        """
+        inputs = layers.Input(shape=(self.input_dim,))
+        
+        x = layers.Dense(128, activation='relu', kernel_initializer='he_uniform', kernel_regularizer=regularizers.l2(0.01))(inputs)
+        x = layers.Dense(64, activation='relu', kernel_initializer='he_uniform', kernel_regularizer=regularizers.l2(0.01))(x)
+        
+        # Integrate RBMLayer
+        rbm_output = RBMLayer(self.num_hidden_units)(x)
+        
+        # Integrate Multi-Head Attention Block
+        attention_output = layers.MultiHeadAttention(num_heads=self.num_attention_heads, key_dim=self.num_hidden_units)(rbm_output, rbm_output)
+        
+        # Adding a normalization layer after attention
+        attention_output = layers.LayerNormalization()(attention_output)
+        
+        # Combine outputs
+        combined = layers.Concatenate()([rbm_output, attention_output])
+        
+        # Final dense layers for action value prediction
+        x = layers.Dense(128, activation='relu', kernel_initializer='he_uniform', kernel_regularizer=regularizers.l2(0.01))(combined)
+        outputs = layers.Dense(self.action_space_size, activation='linear', kernel_initializer='glorot_uniform')(x)
+        
+        model = models.Model(inputs=inputs, outputs=outputs)
         return model
 
-    def call(self, inputs):
-        if not isinstance(inputs, tf.Tensor):
-            raise ValueError("Inputs must be a Keras tensor")
-        return self.q_network(inputs)
-
-    def compute_output_shape(self, input_shape):
-        return (input_shape[0], self.action_space_size)
+    def update_target_network(self):
+        """
+        Updates the target Q-network with the current Q-network's weights.
+        """
+        self.target_q_network.set_weights(self.q_network.get_weights())
 
     def update(self, batch_size: int, beta: float = 0.4):
+        """
+        Updates the Q-network using a batch of transitions sampled from the replay buffer.
+        """
         data = self.replay_buffer.sample_buffer(batch_size, beta)
         if data is None:
             return
         states, actions, rewards, next_states, dones = data[0]
         indices, weights = data[1], data[2]
 
+        # Compute target Q-values
         target_q_values = rewards + (1 - dones) * self.gamma * np.max(self.target_q_network.predict(next_states), axis=1)
         with tf.GradientTape() as tape:
             q_values = tf.reduce_sum(self.q_network(states) * tf.one_hot(actions, self.action_space_size), axis=1)
@@ -123,51 +146,51 @@ class QLearningLayer(layers.Layer):
         grads = tape.gradient(loss, self.q_network.trainable_variables)
         self.q_network.optimizer.apply_gradients(zip(grads, self.q_network.trainable_variables))
 
-        self.buffer_index += 1
-        if self.buffer_index % 1000 == 0:
-            self.target_q_network.set_weights(self.q_network.get_weights())
-        if self.epsilon > self.min_epsilon:
-            self.epsilon = max(self.min_epsilon, self.epsilon * self.epsilon_decay)
-
+        # Update priorities in the replay buffer
         priorities = np.abs(target_q_values - q_values) + 1e-6
         self.replay_buffer.update_priorities(indices, priorities)
 
+        # Decay epsilon
+        if self.epsilon > self.min_epsilon:
+            self.epsilon *= self.epsilon_decay
+
     def store_transition(self, state: np.ndarray, action: int, reward: float, next_state: np.ndarray, done: bool):
+        """
+        Store a transition in the replay buffer.
+        """
         if not isinstance(state, np.ndarray) or not isinstance(next_state, np.ndarray):
             raise ValueError("State and next_state must be numpy arrays")
         self.replay_buffer.store_transition((state, action, reward, next_state, done))
 
     def choose_action(self, state: np.ndarray) -> int:
+        """
+        Choose an action based on the current Q-network and epsilon-greedy strategy.
+        """
         if not isinstance(state, np.ndarray):
             raise ValueError("State must be a numpy array")
-        state = np.array(state).reshape(1, -1)
+        state = state.reshape(1, -1)
         if np.random.rand() < self.epsilon:
             return np.random.randint(self.action_space_size)
         q_values = self.q_network.predict(state)
         return np.argmax(q_values[0])
 
     def save_weights(self, filepath: str):
+        """
+        Save the Q-network's weights to the specified file path.
+        """
         if not filepath.endswith('.h5'):
             raise ValueError("File path must end with '.h5'")
         self.q_network.save_weights(filepath)
 
     def load_weights(self, filepath: str):
+        """
+        Load the Q-network's weights from the specified file path.
+        """
         if not os.path.exists(filepath):
-            raise FileNotFoundError("The specified file does not exist")
+            raise FileNotFoundError(f"The specified file {filepath} does not exist")
         self.q_network.load_weights(filepath)
 
-def create_neural_network_model(input_dim: int, num_hidden_units: int, action_space_size: int) -> models.Model:
-    if input_dim <= 0 or num_hidden_units <= 0 or action_space_size <= 0:
-        raise ValueError("Input dimensions and action space size must be positive")
-    input_layer = layers.Input(shape=(input_dim,))
-    x = layers.Dense(128, activation='relu', kernel_initializer='he_uniform')(input_layer)
-    x = layers.Dense(64, activation='relu', kernel_initializer='he_uniform')(x)
-    x_rbm = RBMLayer(num_hidden_units)(x)
-    q_learning_layer = QLearningLayer(action_space_size)(x_rbm)
-    model = models.Model(inputs=input_layer, outputs=q_learning_layer)
-    return model
-
-def preprocess_state(state):
+def preprocess_state(state: Union[np.ndarray, dict, list, tuple]) -> np.ndarray:
     """
     Ensure the state is a consistent NumPy array of float32 type.
     """
@@ -179,7 +202,10 @@ def preprocess_state(state):
         state = np.asarray(state, dtype=np.float32).flatten()
     return state.reshape(1, -1)
 
-def train_model_in_bipedalwalker(env_name: str, q_learning_layer: QLearningLayer, num_episodes: int, epsilon: float = 0.1, checkpoint_interval: int = 100):
+def train_agent(env_name: str, agent: QLearningAgent, num_episodes: int, checkpoint_interval: int = 100):
+    """
+    Train the Q-learning agent in the specified environment.
+    """
     try:
         env = gym.make(env_name)
     except gym.error.Error as e:
@@ -188,33 +214,38 @@ def train_model_in_bipedalwalker(env_name: str, q_learning_layer: QLearningLayer
 
     for episode in tqdm(range(num_episodes), desc="Training Episodes"):
         state = env.reset()
-        state = preprocess_state(state)  # Ensure state is a float32 numpy array
+        state = preprocess_state(state)
         done = False
         total_reward = 0
 
         while not done:
-            action = q_learning_layer.choose_action(state)
+            action = agent.choose_action(state)
             next_state, reward, done, _ = env.step(action)
-            next_state = preprocess_state(next_state)  # Ensure next_state is a float32 numpy array
-            q_learning_layer.store_transition(state, action, reward, next_state, done)
-            q_learning_layer.update(batch_size=32)
+            next_state = preprocess_state(next_state)
+            agent.store_transition(state, action, reward, next_state, done)
+            agent.update(batch_size=32)
             state = next_state
             total_reward += reward
 
         logger.info(f'Episode {episode + 1}/{num_episodes}, Total Reward: {total_reward}')
 
-        # Save checkpoints
         if (episode + 1) % checkpoint_interval == 0:
             checkpoint_path = f'checkpoint_model_{episode + 1}.h5'
-            q_learning_layer.save_weights(checkpoint_path)
+            agent.save_weights(checkpoint_path)
             logger.info(f"Checkpoint saved at {checkpoint_path}")
+
+        if (episode + 1) % 100 == 0:
+            agent.update_target_network()
 
     env.close()
     final_save_path = 'trained_model.h5'
-    q_learning_layer.save_weights(final_save_path)
+    agent.save_weights(final_save_path)
     logger.info(f"Final model saved successfully at {final_save_path}")
 
-def evaluate_model(model: models.Model, env_name: str, num_episodes: int):
+def evaluate_agent(agent: QLearningAgent, env_name: str, num_episodes: int) -> Tuple[float, float]:
+    """
+    Evaluate the trained Q-learning agent over a number of episodes.
+    """
     try:
         env = gym.make(env_name)
     except gym.error.Error as e:
@@ -225,14 +256,14 @@ def evaluate_model(model: models.Model, env_name: str, num_episodes: int):
 
     for episode in tqdm(range(num_episodes), desc="Evaluation Episodes"):
         state = env.reset()
-        state = preprocess_state(state)  # Ensure state is a float32 numpy array
+        state = preprocess_state(state)
         done = False
         total_reward = 0
 
         while not done:
-            action = model.choose_action(state)
+            action = agent.choose_action(state)
             next_state, reward, done, _ = env.step(action)
-            next_state = preprocess_state(next_state)  # Ensure next_state is a float32 numpy array
+            next_state = preprocess_state(next_state)
             state = next_state
             total_reward += reward
 
@@ -246,12 +277,15 @@ def evaluate_model(model: models.Model, env_name: str, num_episodes: int):
     logger.info(f'Standard Deviation of Reward: {std_reward}')
     return avg_reward, std_reward
 
-def load_model(model_path: str) -> models.Model:
+def load_agent(model_path: str, input_dim: int, num_hidden_units: int, num_attention_heads: int, action_space_size: int) -> QLearningAgent:
+    """
+    Load a trained Q-learning agent from the specified model path.
+    """
+    agent = QLearningAgent(input_dim=input_dim, num_hidden_units=num_hidden_units, num_attention_heads=num_attention_heads, action_space_size=action_space_size)
     try:
-        custom_objects = {'RBMLayer': RBMLayer, 'QLearningLayer': QLearningLayer}
-        model = models.load_model(model_path, custom_objects=custom_objects)
+        agent.load_weights(model_path)
         logger.info("Model loaded successfully.")
-        return model
+        return agent
     except Exception as e:
         logger.error(f"Error loading model: {e}")
         raise
@@ -259,32 +293,34 @@ def load_model(model_path: str) -> models.Model:
 def main():
     input_dim = 24
     num_hidden_units = 128
+    num_attention_heads = 4
     action_space_size = 4
+    num_episodes = 1000
+    eval_episodes = 100
 
-    try:
-        model = create_neural_network_model(input_dim, num_hidden_units, action_space_size)
-    except ValueError as e:
-        logger.error(f"Error creating model: {e}")
-        raise
+    agent = QLearningAgent(input_dim=input_dim, num_hidden_units=num_hidden_units, num_attention_heads=num_attention_heads, action_space_size=action_space_size)
 
     env_name = 'BipedalWalker-v3'
-    num_episodes = 1000
-    epsilon = 0.1
 
-    q_learning_layer = QLearningLayer(action_space_size)
-    train_model_in_bipedalwalker(env_name, q_learning_layer, num_episodes, epsilon=epsilon)
-
-    model_path = 'trained_model.h5'
-    loaded_model = load_model(model_path)
-
-    eval_episodes = 100
     try:
-        avg_reward, std_reward = evaluate_model(loaded_model, env_name, eval_episodes)
+        train_agent(env_name, agent, num_episodes)
     except Exception as e:
-        logger.error(f"Error during model evaluation: {e}")
+        logger.error(f"Error during training: {e}")
         raise
 
-    print(f'Average Reward: {avg_reward}, Standard Deviation of Reward: {std_reward}')
+    model_path = 'trained_model.h5'
+    try:
+        agent = load_agent(model_path, input_dim, num_hidden_units, num_attention_heads, action_space_size)
+    except Exception as e:
+        logger.error(f"Error loading agent: {e}")
+        raise
+
+    try:
+        avg_reward, std_reward = evaluate_agent(agent, env_name, eval_episodes)
+        print(f'Average Reward: {avg_reward}, Standard Deviation of Reward: {std_reward}')
+    except Exception as e:
+        logger.error(f"Error during evaluation: {e}")
+        raise
 
 if __name__ == "__main__":
     main()
